@@ -1,0 +1,64 @@
+name: Send Newsletter
+
+on:
+  schedule:
+    # Runs every other Monday at 8:00 AM Pacific (16:00 UTC)
+    # GitHub Actions doesn't have native "every 2 weeks" — we handle
+    # the alternating logic in the run step below.
+    - cron: "0 16 * * 1"
+
+  # Allow manual trigger from GitHub UI (Actions tab → Run workflow)
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: "Issue number (leave blank to auto-increment)"
+        required: false
+        default: ""
+
+jobs:
+  send-newsletter:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Every-other-week gate:
+      # We calculate the week number of the year. If it's odd, we skip.
+      # This means the newsletter goes out on even-numbered weeks.
+      # Flip the condition (exit 0 vs exit 1) if you want it on odd weeks instead.
+      - name: Check if this is a send week
+        if: github.event_name == 'schedule'
+        run: |
+          WEEK=$(date +%V | sed 's/^0*//')
+          echo "Current week of year: $WEEK"
+          if (( WEEK % 2 != 0 )); then
+            echo "Odd week — skipping this run."
+            exit 0
+          fi
+          echo "Even week — proceeding with newsletter."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Determine issue number
+        id: issue
+        run: |
+          if [ -n "${{ github.event.inputs.issue_number }}" ]; then
+            echo "number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          else
+            # Auto-increment: count previous successful runs of this workflow
+            # Simple approach: use the run number divided by 1 (each send = 1 issue)
+            # For a more robust counter, store a file in the repo — see README.
+            echo "number=${{ github.run_number }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate and send newsletter
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          TO_EMAIL: ${{ secrets.TO_EMAIL }}
+          FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
+        run: node generate.js ${{ steps.issue.outputs.number }}
