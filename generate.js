@@ -11,8 +11,63 @@ const today = new Date();
 const dateStr = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
 // ── Anthropic API call (with optional tools) ──────────────────────────────────
-function callClaude({ system, userMessage, tools, maxTokens = 3000 }) {
-  return new Promise((resolve, reject) => {
+async function callClaude({ system, userMessage, tools, maxTokens = 3000 }, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const payload = {
+        model: "claude-sonnet-4-20250514",
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: userMessage }],
+      };
+      if (tools) payload.tools = tools;
+      const body = JSON.stringify(payload);
+
+      const result = await new Promise((resolve, reject) => {
+        const req = https.request(
+          {
+            hostname: "api.anthropic.com",
+            path: "/v1/messages",
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": ANTHROPIC_API_KEY,
+              "anthropic-version": "2023-06-01",
+              "Content-Length": Buffer.byteLength(body),
+            },
+          },
+          (res) => {
+            let data = "";
+            res.on("data", (c) => (data += c));
+            res.on("end", () => {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.error) return reject(new Error(parsed.error.message));
+                resolve(parsed);
+              } catch (e) {
+                reject(new Error("Failed to parse API response: " + e.message));
+              }
+            });
+          }
+        );
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+
+      return result;
+    } catch (err) {
+      const isRetryable = err.message.includes("Overloaded") || err.message.includes("rate limit");
+      if (isRetryable && attempt < retries) {
+        const wait = attempt * 30000;
+        console.log(`  API overloaded, retrying in ${wait / 1000}s (attempt ${attempt}/${retries})...`);
+        await new Promise((r) => setTimeout(r, wait));
+      } else {
+        throw err;
+      }
+    }
+  }
+}
     const payload = {
       model: "claude-sonnet-4-20250514",
       max_tokens: maxTokens,
