@@ -529,7 +529,7 @@ function slugify(str) {
     console.log("✓ Newsletter skeleton generated");
     console.log(`  Quote: "${issue.quote.text.slice(0, 60)}..." — ${issue.quote.author}`);
 
-    const fullArticles = [];
+const fullArticles = [];
     for (const section of issue.sections) {
       if (!section.articles) continue;
       for (const article of section.articles) {
@@ -537,6 +537,7 @@ function slugify(str) {
         fa.slug = slugify(fa.title || article.title);
         fa.sectionTag = section.tag;
         fullArticles.push(fa);
+        await new Promise((r) => setTimeout(r, 12000));
       }
     }
     console.log(`✓ ${fullArticles.length} full articles generated`);
