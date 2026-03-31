@@ -10,7 +10,7 @@ const issueNumber = parseInt(process.argv[2] || "1", 10);
 const today = new Date();
 const dateStr = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-// ── Anthropic API call (with optional tools) ──────────────────────────────────
+// ── Anthropic API call (with retry) ──────────────────────────────────────────
 async function callClaude({ system, userMessage, tools, maxTokens = 3000 }, retries = 3) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -68,47 +68,6 @@ async function callClaude({ system, userMessage, tools, maxTokens = 3000 }, retr
     }
   }
 }
-    const payload = {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: userMessage }],
-    };
-    if (tools) payload.tools = tools;
-
-    const body = JSON.stringify(payload);
-
-    const req = https.request(
-      {
-        hostname: "api.anthropic.com",
-        path: "/v1/messages",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": ANTHROPIC_API_KEY,
-          "anthropic-version": "2023-06-01",
-          "Content-Length": Buffer.byteLength(body),
-        },
-      },
-      (res) => {
-        let data = "";
-        res.on("data", (c) => (data += c));
-        res.on("end", () => {
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.error) return reject(new Error(parsed.error.message));
-            resolve(parsed);
-          } catch (e) {
-            reject(new Error("Failed to parse API response: " + e.message));
-          }
-        });
-      }
-    );
-    req.on("error", reject);
-    req.write(body);
-    req.end();
-  });
-}
 
 function extractText(response) {
   return response.content
@@ -136,7 +95,7 @@ Tone: warm and collegial, like a smart friend sharing what they have been readin
 Respond ONLY with a valid JSON object — no markdown fences, no preamble — following this exact schema:
 {
   "quote": {
-    "text": "A real, verifiable quote (not AI-generated) from a therapist, philosopher, writer, or scientist that resonates with themes of human development, relationships, or the inner life. Must be a quote you are highly confident is accurate and attributable.",
+    "text": "A real, verifiable quote from a therapist, philosopher, writer, or scientist that resonates with themes of human development, relationships, or the inner life. Must be a quote you are highly confident is accurate and attributable.",
     "author": "Full name",
     "source": "Book title, interview, or context"
   },
@@ -152,7 +111,7 @@ Respond ONLY with a valid JSON object — no markdown fences, no preamble — fo
           "source": "Publication name",
           "summary": "3-4 sentence substantive summary. Name a researcher, concept, or finding. Be specific.",
           "why": "One sentence on relevance for an early-career couples/individual therapist.",
-          "searchQuery": "A specific 6-10 word web search query to find 2-3 real sources on this topic"
+          "searchQuery": "A specific 6-10 word web search query to find real sources on this topic"
         }
       ]
     },
@@ -233,7 +192,7 @@ async function generateArticle(articleData, sectionTag, issueNum) {
 
 Tone: warm, intelligent, collegial — like a smart colleague who has done a lot of reading and wants to share what they found. Not academic. Not a listicle. Flowing prose with a clear throughline.
 
-After writing the article, use web search to find 2-3 real, credible sources related to the topic. These must be real URLs that actually exist — journal articles, reputable publications, or organization websites.
+After writing the article, use web search to find 2-3 real, credible sources related to the topic. These must be real URLs that actually exist.
 
 Respond ONLY with a valid JSON object — no markdown fences:
 {
@@ -305,14 +264,11 @@ function buildArticlesPage(issue, fullArticles, issueNum, datStr) {
       fa.sources && fa.sources.length
         ? `<div style="margin-top:2rem;padding-top:1.5rem;border-top:1px solid #e8e3db;">
             <p style="font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#8a8480;margin:0 0 0.75rem;font-weight:500;">Further reading</p>
-            ${fa.sources
-              .map(
-                (s) => `<div style="margin-bottom:0.6rem;">
-              <a href="${esc(s.url)}" style="font-size:14px;color:#2d5f8a;text-decoration:none;" target="_blank">${esc(s.title)}</a>
-              <span style="font-size:12px;color:#8a8480;"> — ${esc(s.publication)}</span>
-            </div>`
-              )
-              .join("")}
+            ${fa.sources.map((s) => `
+              <div style="margin-bottom:0.6rem;">
+                <a href="${esc(s.url)}" style="font-size:14px;color:#2d5f8a;text-decoration:none;" target="_blank">${esc(s.title)}</a>
+                <span style="font-size:12px;color:#8a8480;"> — ${esc(s.publication)}</span>
+              </div>`).join("")}
           </div>`
         : "";
 
@@ -584,7 +540,7 @@ function slugify(str) {
     console.log("✓ Newsletter skeleton generated");
     console.log(`  Quote: "${issue.quote.text.slice(0, 60)}..." — ${issue.quote.author}`);
 
-const fullArticles = [];
+    const fullArticles = [];
     for (const section of issue.sections) {
       if (!section.articles) continue;
       for (const article of section.articles) {
