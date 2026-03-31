@@ -14,6 +14,8 @@ on:
         description: "Issue number (leave blank to auto-increment)"
         required: false
         default: ""
+permissions:
+  contents: write
 
 jobs:
   send-newsletter:
