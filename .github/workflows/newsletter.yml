@@ -5,7 +5,7 @@ on:
     # Runs every other Monday at 8:00 AM Pacific (16:00 UTC)
     # GitHub Actions doesn't have native "every 2 weeks" — we handle
     # the alternating logic in the run step below.
-    - cron: "0 16 * * 1"
+    - cron: "0 15 * * 0"
 
   # Allow manual trigger from GitHub UI (Actions tab → Run workflow)
   workflow_dispatch:
@@ -29,16 +29,6 @@ jobs:
       # We calculate the week number of the year. If it's odd, we skip.
       # This means the newsletter goes out on even-numbered weeks.
       # Flip the condition (exit 0 vs exit 1) if you want it on odd weeks instead.
-      - name: Check if this is a send week
-        if: github.event_name == 'schedule'
-        run: |
-          WEEK=$(date +%V | sed 's/^0*//')
-          echo "Current week of year: $WEEK"
-          if (( WEEK % 2 != 0 )); then
-            echo "Odd week — skipping this run."
-            exit 0
-          fi
-          echo "Even week — proceeding with newsletter."
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
