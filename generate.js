@@ -59,7 +59,7 @@ async function callClaude({ system, userMessage, tools, maxTokens = 3000 }, retr
     } catch (err) {
       const isRetryable = err.message.includes("Overloaded") || err.message.includes("rate limit");
       if (isRetryable && attempt < retries) {
-        const wait = attempt * 30000;
+        const wait = attempt * 60000;
         console.log(`  API overloaded, retrying in ${wait / 1000}s (attempt ${attempt}/${retries})...`);
         await new Promise((r) => setTimeout(r, wait));
       } else {
@@ -487,7 +487,7 @@ function slugify(str) {
       fa.slug = slugify(fa.title || article.title);
       fa.tag = article.tag;
       fullArticles.push(fa);
-      await new Promise((r) => setTimeout(r, 12000));
+      await new Promise((r) => setTimeout(r, 25000));
     }
     console.log(`✓ ${fullArticles.length} full articles generated`);
 
